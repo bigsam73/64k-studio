@@ -33,7 +33,10 @@ use windows_sys::Win32::{
     System::Threading::ExitProcess,
     UI::{
         Input::KeyboardAndMouse::{GetAsyncKeyState, VK_ESCAPE},
-        WindowsAndMessaging::{CreateWindowExA, ShowCursor, WS_MAXIMIZE, WS_POPUP, WS_VISIBLE},
+        WindowsAndMessaging::{
+            CreateWindowExA, PeekMessageA, ShowCursor, MSG, PM_REMOVE, WS_EX_TOPMOST, WS_MAXIMIZE,
+            WS_POPUP, WS_VISIBLE,
+        },
     },
 };
 
@@ -58,7 +61,7 @@ unsafe fn enter_fullscreen() {
 
 unsafe fn create_device() -> HDC {
     let handle = CreateWindowExA(
-        0,
+        WS_EX_TOPMOST,
         "edit\0".as_ptr(),
         core::ptr::null(),
         WS_POPUP | WS_VISIBLE | WS_MAXIMIZE,
@@ -99,7 +102,12 @@ extern "C" fn mainCRTStartup() {
         let length = wavesabre_rs::length(SONG_BLOB);
         let _player = wavesabre_rs::play(wavesabre_device_factory, &SONG_BLOB);
 
+        let mut msg: MSG = mem::zeroed();
         while GetAsyncKeyState(VK_ESCAPE as i32) == 0 {
+            // Drain the message queue so Windows doesn't flag the window as "not responding"
+            // (which replaces it with a grey ghost window after ~5 s).
+            while PeekMessageA(&mut msg, core::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {}
+
             let elapsed = time::elapsed();
             if elapsed > length {
                 break;

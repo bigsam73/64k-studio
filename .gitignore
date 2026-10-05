@@ -3,3 +3,6 @@ src/glsl.rs
 
 # Build artifacts
 /target
+
+# 64k Studio runtime log
+studio/server.log

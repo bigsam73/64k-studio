@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>64k Studio</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a; --fg: #e6e8ee; --muted: #8b93a7;
+    --accent: #6ea8fe; --ok: #4cd964; --warn: #ffb020; --bad: #ff5b5b; --mono: ui-monospace, Consolas, "Cascadia Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 13px/1.45 system-ui, "Segoe UI", "Malgun Gothic", sans-serif; display: grid;
+         grid-template-rows: 48px 1fr auto; grid-template-columns: 320px 1fr 460px; grid-template-areas: "hdr hdr hdr" "left center right" "log log log"; height: 100vh; }
+  header { grid-area: hdr; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 15px; margin: 0 12px 0 0; letter-spacing: .5px; }
+  header .spacer { flex: 1; }
+  .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .chip.ok { color: var(--ok); border-color: #2b5a35; } .chip.bad { color: var(--bad); border-color: #5a2b2b; } .chip.warn { color: var(--warn); border-color: #5a4a2b; }
+  button { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
+  button:hover { border-color: var(--accent); } button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: #2b4a7a; border-color: #3d6bb5; } button.danger { border-color: #6b2b2b; }
+  input, select, textarea { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; font: inherit; }
+  input[type=range] { padding: 0; width: 100%; accent-color: var(--accent); }
+  input[type=color] { padding: 0; width: 36px; height: 24px; border: none; background: none; }
+  input[type=checkbox] { accent-color: var(--accent); }
+  aside, main, section.right { overflow: auto; min-height: 0; }
+  aside { grid-area: left; background: var(--panel); border-right: 1px solid var(--line); padding: 12px; }
+  main { grid-area: center; display: flex; flex-direction: column; background: #000; position: relative; }
+  section.right { grid-area: right; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 14px 0 8px; display: flex; align-items: center; gap: 8px; }
+  h2:first-child { margin-top: 0; } h2 .spacer { flex: 1; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; } .row label { color: var(--muted); min-width: 64px; }
+  .row input[type=number], .row input[type=text] { width: 100%; }
+  .param { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-bottom: 8px; }
+  .param .head { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .param .head input.name { font-family: var(--mono); font-weight: 600; width: 100%; }
+  .param .head select { width: 70px; }
+  .param .head button { padding: 2px 7px; }
+  .param .ctrl { display: flex; gap: 6px; align-items: center; }
+  .param .ctrl input[type=number] { width: 78px; font-family: var(--mono); }
+  .param .range { display: flex; gap: 6px; align-items: center; margin-top: 6px; color: var(--muted); font-size: 11px; }
+  .param .range input { width: 60px; font-size: 11px; padding: 2px 4px; }
+  .param .vec { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  canvas#gl { width: 100%; height: 100%; object-fit: contain; display: block; flex: 1; min-height: 0; background: #000; }
+  .canvaswrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .transport { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line); }
+  .transport input[type=range] { flex: 1; }
+  .transport .t { font-family: var(--mono); min-width: 110px; text-align: right; color: var(--muted); }
+  .editorwrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  textarea#code { flex: 1; width: 100%; resize: none; font: 12.5px/1.5 var(--mono); padding: 10px; border: none; border-radius: 0; background: #0b0d12; tab-size: 4; white-space: pre; overflow: auto; outline: none; }
+  .toolbar { display: flex; gap: 6px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .toolbar select { max-width: 200px; }
+  .errors { font: 11.5px/1.5 var(--mono); color: var(--bad); background: #1a0f12; padding: 6px 10px; max-height: 120px; overflow: auto; white-space: pre-wrap; border-top: 1px solid #3a1f24; display: none; }
+  .errors.show { display: block; }
+  .sizes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; border-top: 1px solid var(--line); }
+  .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .stat .k { color: var(--muted); font-size: 11px; } .stat .v { font-family: var(--mono); font-size: 15px; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--ok); }
+  .bar i.warn { background: var(--warn); } .bar i.bad { background: var(--bad); }
+  footer { grid-area: log; border-top: 1px solid var(--line); background: #0b0d12; }
+  footer .loghead { display: flex; gap: 10px; align-items: center; padding: 4px 12px; background: var(--panel); font-size: 11px; color: var(--muted); }
+  footer pre { margin: 0; height: 160px; overflow: auto; padding: 8px 12px; font: 11.5px/1.45 var(--mono); color: #c9d1e0; white-space: pre-wrap; }
+  footer.collapsed pre { height: 0; padding: 0; }
+  .fps { position: absolute; top: 8px; right: 12px; font: 11px var(--mono); color: var(--muted); background: rgba(0,0,0,.5); padding: 2px 6px; border-radius: 4px; }
+  .hint { color: var(--muted); font-size: 11.5px; }
+  kbd { font-family: var(--mono); background: var(--panel2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+  .toast { position: fixed; bottom: 200px; left: 50%; transform: translateX(-50%); background: #222a3a; border: 1px solid var(--accent); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>64k Studio</h1>
+  <input id="projName" type="text" value="my-intro" style="width:140px" title="프로젝트 이름">
+  <span class="chip" id="chipCargo">cargo: …</span>
+  <span class="chip" id="chipMsvc">MSVC: …</span>
+  <span class="chip" id="chipUpx">upx: …</span>
+  <span class="chip" id="chipExe">exe: 없음</span>
+  <span class="spacer"></span>
+  <button id="btnSave" class="primary" title="Ctrl+S">💾 코드 생성/저장</button>
+  <button id="btnMinify" title="Shader_Minifier로 실제 압축 크기 측정">📐 Minify</button>
+  <button id="btnBuild" title="cargo build --release">🔨 Build</button>
+  <label class="hint"><input type="checkbox" id="chkUpx" checked> UPX</label>
+  <button id="btnRun" title="빌드된 exe 실행 (ESC로 종료)">▶ Run</button>
+  <a id="btnDownload" href="/api/download-frag" download><button>⬇ .frag</button></a>
+</header>
+
+<aside>
+  <h2>프로젝트 설정</h2>
+  <div class="row"><label>해상도</label><input type="number" id="width" value="1920" min="16" step="1"> × <input type="number" id="height" value="1080" min="16" step="1"></div>
+  <div class="row"><label>길이(초)</label><input type="number" id="duration" value="60" min="1" step="1"> <span class="hint">프리뷰 루프용</span></div>
+  <div class="row"><label>프리뷰</label>
+    <select id="previewScale"><option value="0.25">25%</option><option value="0.5" selected>50%</option><option value="1">100%</option></select>
+    <button id="btnFull" title="프리뷰 전체화면">⛶</button>
+  </div>
+
+  <h2>파라미터 <span class="spacer"></span><button id="btnAddParam">+ 추가</button></h2>
+  <p class="hint">여기 값은 셰이더에 <code>const</code> 상수로 구워집니다(런타임 비용 0). 이름을 GLSL에서 그대로 사용하세요. 예: <code>SPEED</code></p>
+  <div id="params"></div>
+</aside>
+
+<main>
+  <div class="canvaswrap"><canvas id="gl"></canvas></div>
+  <div class="fps" id="fps">-- fps</div>
+  <div class="transport">
+    <button id="btnPlay">⏸</button>
+    <button id="btnRestart" title="처음으로">⏮</button>
+    <input type="range" id="seek" min="0" max="60" step="0.01" value="0">
+    <span class="t" id="timeLabel">0.00 / 60.00s</span>
+    <label class="hint"><input type="checkbox" id="chkLoop" checked> 루프</label>
+  </div>
+</main>
+
+<section class="right">
+  <div class="toolbar">
+    <label class="hint">프리셋</label>
+    <select id="presets"></select>
+    <button id="btnLoadPreset">불러오기</button>
+    <span class="spacer" style="flex:1"></span>
+    <label class="hint"><input type="checkbox" id="chkLive" checked> 실시간 컴파일</label>
+    <button id="btnCompile" title="Ctrl+Enter">컴파일</button>
+  </div>
+  <div class="editorwrap">
+    <textarea id="code" spellcheck="false"></textarea>
+    <div class="errors" id="errors"></div>
+  </div>
+  <div class="sizes">
+    <div class="stat"><div class="k">GLSL 원본</div><div class="v" id="szRaw">0 B</div></div>
+    <div class="stat"><div class="k">대략 압축(브라우저 추정)</div><div class="v" id="szRough">0 B</div></div>
+    <div class="stat"><div class="k">Shader_Minifier 결과</div><div class="v" id="szMin">–</div></div>
+    <div class="stat"><div class="k">exe 크기 / 65 536 B</div><div class="v" id="szExe">–</div><div class="bar"><i id="barExe" style="width:0%"></i></div></div>
+  </div>
+</section>
+
+<footer id="log">
+  <div class="loghead"><span>로그</span><span class="spacer" style="flex:1"></span><button id="btnClearLog" style="padding:1px 8px">지우기</button><button id="btnToggleLog" style="padding:1px 8px">접기</button></div>
+  <pre id="logBody"></pre>
+</footer>
+<div class="toast" id="toast"></div>
+
+<script src="/gen.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const state = { project: null, presets: [], status: null, lastMin: null };
+
+  // ---------------- WebGL preview ----------------
+  const canvas = $("#gl");
+  const gl = canvas.getContext("webgl", { antialias: false, preserveDrawingBuffer: false }) || canvas.getContext("experimental-webgl");
+  let program = null, uTime = null, compiledKey = "";
+  const VS = "attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}";
+  const quad = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+  function compile(force) {
+    const scale = parseFloat($("#previewScale").value);
+    const w = Math.max(1, Math.round(state.project.width * scale)), h = Math.max(1, Math.round(state.project.height * scale));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; gl.viewport(0, 0, w, h); }
+    const { source, headerLines } = Gen.previewShader(state.project, w, h);
+    if (!force && source === compiledKey) return true;
+    compiledKey = source;
+    const errBox = $("#errors");
+    const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    const vs = mk(gl.VERTEX_SHADER, VS), fs = mk(gl.FRAGMENT_SHADER, source);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+      const log = gl.getShaderInfoLog(fs) || "unknown error";
+      // ERROR: 0:LINE: message  -> shift line numbers so they match the editor
+      errBox.textContent = log.replace(/ERROR: 0:(\d+):/g, (m, n) => "줄 " + (parseInt(n, 10) - headerLines + 1) + ":");
+      errBox.classList.add("show");
+      return false;
+    }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      errBox.textContent = gl.getProgramInfoLog(prog); errBox.classList.add("show"); return false;
+    }
+    if (program) gl.deleteProgram(program);
+    program = prog; uTime = gl.getUniformLocation(prog, "iTime");
+    const loc = gl.getAttribLocation(prog, "p");
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    errBox.classList.remove("show");
+    return true;
+  }
+
+  // ---------------- time / transport ----------------
+  let playing = true, tCur = 0, lastNow = performance.now(), frames = 0, fpsT = performance.now();
+  function frame(now) {
+    const dt = (now - lastNow) / 1000; lastNow = now;
+    if (playing) {
+      tCur += dt;
+      const dur = state.project ? state.project.duration : 60;
+      if (tCur > dur) { if ($("#chkLoop").checked) tCur = tCur % dur; else { tCur = dur; playing = false; $("#btnPlay").textContent = "▶"; } }
+    }
+    if (program) {
+      gl.useProgram(program);
+      gl.uniform1f(uTime, tCur);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    $("#seek").value = tCur;
+    $("#timeLabel").textContent = tCur.toFixed(2) + " / " + (state.project ? state.project.duration : 60).toFixed(2) + "s";
+    frames++;
+    if (now - fpsT > 500) { $("#fps").textContent = Math.round(frames * 1000 / (now - fpsT)) + " fps  " + canvas.width + "×" + canvas.height; frames = 0; fpsT = now; }
+    requestAnimationFrame(frame);
+  }
+  $("#btnPlay").onclick = () => { playing = !playing; $("#btnPlay").textContent = playing ? "⏸" : "▶"; };
+  $("#btnRestart").onclick = () => { tCur = 0; };
+  $("#seek").oninput = (e) => { tCur = parseFloat(e.target.value); };
+  $("#btnFull").onclick = () => canvas.requestFullscreen && canvas.requestFullscreen();
+  $("#previewScale").onchange = () => compile(true);
+
+  // ---------------- params UI ----------------
+  const TYPES = ["float", "int", "bool", "color", "vec2", "vec3"];
+  function defaultValue(type) {
+    return type === "int" ? 1 : type === "bool" ? true : type === "color" ? [1, 1, 1] : type === "vec2" ? [0, 0] : type === "vec3" ? [0, 0, 0] : 1;
+  }
+  const hex = (v) => "#" + v.map((x) => Math.round(Math.max(0, Math.min(1, x)) * 255).toString(16).padStart(2, "0")).join("");
+  const unhex = (s) => [1, 3, 5].map((i) => parseInt(s.substr(i, 2), 16) / 255);
+
+  function renderParams() {
+    const box = $("#params"); box.innerHTML = "";
+    state.project.params.forEach((p, idx) => {
+      const el = document.createElement("div"); el.className = "param";
+      const head = document.createElement("div"); head.className = "head";
+      const name = document.createElement("input"); name.className = "name"; name.value = p.name; name.title = "GLSL 식별자";
+      name.onchange = () => { p.name = name.value.trim(); if (!Gen.validName(p.name)) { toast("잘못된 이름: " + p.name); } onChange(); };
+      const type = document.createElement("select");
+      TYPES.forEach((t) => { const o = document.createElement("option"); o.value = t; o.textContent = t; if (t === p.type) o.selected = true; type.appendChild(o); });
+      type.onchange = () => { p.type = type.value; p.value = defaultValue(p.type); if (p.type === "int") { p.min = 0; p.max = 100; p.step = 1; } renderParams(); onChange(); };
+      const up = btn("↑", () => { if (idx > 0) { const a = state.project.params; [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]]; renderParams(); onChange(); } });
+      const del = btn("✕", () => { state.project.params.splice(idx, 1); renderParams(); onChange(); }); del.className = "danger";
+      head.append(name, type, up, del); el.appendChild(head);
+
+      const ctrl = document.createElement("div"); ctrl.className = "ctrl";
+      if (p.type === "float" || p.type === "int") {
+        const range = document.createElement("input"); range.type = "range";
+        const num = document.createElement("input"); num.type = "number";
+        const sync = () => { range.min = num.min = p.min ?? 0; range.max = num.max = p.max ?? (p.type === "int" ? 100 : 10); range.step = num.step = p.step ?? (p.type === "int" ? 1 : 0.01); range.value = num.value = p.value; };
+        sync();
+        range.oninput = () => { p.value = p.type === "int" ? parseInt(range.value, 10) : parseFloat(range.value); num.value = p.value; onChange(); };
+        num.onchange = () => { p.value = p.type === "int" ? parseInt(num.value, 10) : parseFloat(num.value); range.value = p.value; onChange(); };
+        ctrl.append(range, num); el.appendChild(ctrl);
+        const rr = document.createElement("div"); rr.className = "range";
+        const mk = (label, key) => { const i = document.createElement("input"); i.type = "number"; i.value = p[key] ?? ""; i.onchange = () => { p[key] = parseFloat(i.value); sync(); }; rr.append(label, i); };
+        mk("min", "min"); mk("max", "max"); mk("step", "step"); el.appendChild(rr);
+      } else if (p.type === "bool") {
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!p.value; cb.onchange = () => { p.value = cb.checked; onChange(); };
+        ctrl.append(cb, document.createTextNode(" on/off")); el.appendChild(ctrl);
+      } else if (p.type === "color") {
+        const c = document.createElement("input"); c.type = "color"; c.value = hex(p.value);
+        c.oninput = () => { p.value = unhex(c.value); vals.forEach((v, i) => v.value = p.value[i].toFixed(3)); onChange(); };
+        const vec = document.createElement("div"); vec.className = "vec"; vec.style.flex = "1";
+        const vals = p.value.map((x, i) => { const n = document.createElement("input"); n.type = "number"; n.step = "0.01"; n.min = 0; n.max = 1; n.value = x.toFixed(3); n.onchange = () => { p.value[i] = parseFloat(n.value); c.value = hex(p.value); onChange(); }; vec.appendChild(n); return n; });
+        ctrl.append(c, vec); el.appendChild(ctrl);
+      } else { // vec2 / vec3
+        const vec = document.createElement("div"); vec.className = "vec"; vec.style.flex = "1"; vec.style.gridTemplateColumns = `repeat(${p.value.length},1fr)`;
+        p.value.forEach((x, i) => {
+          const wrap = document.createElement("div");
+          const r = document.createElement("input"); r.type = "range"; r.min = p.min ?? -10; r.max = p.max ?? 10; r.step = p.step ?? 0.01; r.value = x;
+          const n = document.createElement("input"); n.type = "number"; n.step = r.step; n.value = x; n.style.width = "100%";
+          r.oninput = () => { p.value[i] = parseFloat(r.value); n.value = r.value; onChange(); };
+          n.onchange = () => { p.value[i] = parseFloat(n.value); r.value = n.value; onChange(); };
+          wrap.append(r, n); vec.appendChild(wrap);
+        });
+        ctrl.appendChild(vec); el.appendChild(ctrl);
+        const rr = document.createElement("div"); rr.className = "range";
+        const mk = (label, key) => { const i = document.createElement("input"); i.type = "number"; i.value = p[key] ?? ""; i.onchange = () => { p[key] = parseFloat(i.value); renderParams(); }; rr.append(label, i); };
+        mk("min", "min"); mk("max", "max"); mk("step", "step"); el.appendChild(rr);
+      }
+      box.appendChild(el);
+    });
+  }
+  function btn(label, fn) { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; return b; }
+  $("#btnAddParam").onclick = () => {
+    let i = 1, n; do { n = "PARAM" + i++; } while (state.project.params.some((p) => p.name === n));
+    state.project.params.push({ name: n, type: "float", value: 1, min: 0, max: 10, step: 0.01 });
+    renderParams(); onChange();
+  };
+
+  // ---------------- editor ----------------
+  const code = $("#code");
+  code.addEventListener("keydown", (e) => {
+    if (e.key === "Tab") { e.preventDefault(); const s = code.selectionStart, t = code.selectionEnd; code.value = code.value.slice(0, s) + "    " + code.value.slice(t); code.selectionStart = code.selectionEnd = s + 4; code.dispatchEvent(new Event("input")); }
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); compile(true); }
+  });
+  let liveTimer = null;
+  code.addEventListener("input", () => {
+    state.project.shader = code.value; updateSizes();
+    if ($("#chkLive").checked) { clearTimeout(liveTimer); liveTimer = setTimeout(() => compile(false), 250); }
+  });
+  $("#btnCompile").onclick = () => compile(true);
+  $("#chkLive").onchange = () => $("#chkLive").checked && compile(false);
+
+  function fmtBytes(n) { return n.toLocaleString() + " B"; }
+  function updateSizes() {
+    const full = Gen.nativeShader(state.project);
+    const raw = new TextEncoder().encode(full).length;
+    $("#szRaw").textContent = fmtBytes(raw);
+    $("#szRough").textContent = fmtBytes(new TextEncoder().encode(Gen.roughMinify(full)).length);
+  }
+
+  function onChange() {
+    // params / settings changed: header changes -> recompile
+    $("#seek").max = state.project.duration;
+    updateSizes();
+    if ($("#chkLive").checked) { clearTimeout(liveTimer); liveTimer = setTimeout(() => compile(false), 60); }
+  }
+
+  // settings inputs
+  ["width", "height", "duration"].forEach((k) => { $("#" + k).onchange = (e) => { state.project[k] = parseFloat(e.target.value) || state.project[k]; onChange(); if (k !== "duration") compile(true); }; });
+  $("#projName").onchange = (e) => { state.project.name = e.target.value; };
+
+  function loadProjectIntoUI(p) {
+    state.project = p;
+    $("#projName").value = p.name || "my-intro";
+    $("#width").value = p.width; $("#height").value = p.height; $("#duration").value = p.duration;
+    code.value = p.shader || "";
+    renderParams(); onChange(); compile(true); tCur = 0;
+  }
+
+  // ---------------- server API ----------------
+  async function api(path, body, method) {
+    const r = await fetch(path, { method: method || (body ? "POST" : "GET"), headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json();
+    if (!r.ok || j.ok === false) throw new Error(j.error || r.statusText);
+    return j;
+  }
+  function log(s) { const b = $("#logBody"); b.textContent += s; b.scrollTop = b.scrollHeight; }
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 2200); }
+
+  function setChip(id, ok, text, warn) { const c = $(id); c.textContent = text; c.className = "chip " + (ok ? "ok" : warn ? "warn" : "bad"); }
+  function showExe(exe, exeUpx) {
+    const limit = state.status ? state.status.sizeLimit : 65536;
+    const best = exeUpx || exe;
+    if (!best) { $("#szExe").textContent = "–"; $("#barExe").style.width = "0%"; setChip("#chipExe", false, "exe: 없음", true); return; }
+    const txt = fmtBytes(exe.size) + (exeUpx ? "  → upx " + fmtBytes(exeUpx.size) : "");
+    $("#szExe").textContent = txt;
+    const pct = Math.min(100, best.size / limit * 100);
+    const bar = $("#barExe"); bar.style.width = pct + "%"; bar.className = pct > 100 ? "bad" : pct > 85 ? "warn" : "";
+    setChip("#chipExe", best.size <= limit, "exe: " + fmtBytes(best.size) + " (" + pct.toFixed(1) + "%)");
+    $("#btnRun").disabled = false;
+  }
+  async function refreshStatus() {
+    try {
+      const s = await api("/api/status"); state.status = s;
+      setChip("#chipCargo", !!s.cargo, s.cargo ? "cargo ✓ " + (s.cargo.version || "") : "cargo 없음");
+      setChip("#chipMsvc", s.msvc, s.msvc ? "MSVC ✓" : "MSVC 없음");
+      setChip("#chipUpx", !!s.upx, s.upx ? "upx ✓" : "upx 없음", true);
+      $("#btnBuild").disabled = !s.cargo || s.building;
+      $("#btnRun").disabled = !s.exe;
+      showExe(s.exe, s.exeUpx);
+      if (!s.cargo || !s.msvc) {
+        $("#btnBuild").title = "빌드하려면 Rust(nightly, MSVC)와 Visual Studio Build Tools(C++)가 필요합니다. README.studio.md 참고";
+      }
+    } catch (e) { log("[status] " + e.message + "\n"); }
+  }
+
+  async function save() {
+    try {
+      state.project.shader = code.value;
+      const r = await api("/api/project", state.project);
+      toast("저장됨: src/shader.frag (" + fmtBytes(r.fragBytes) + ")");
+      log("[save] " + r.files.join(", ") + "\n");
+    } catch (e) { toast("저장 실패: " + e.message); log("[save] " + e.message + "\n"); }
+  }
+  $("#btnSave").onclick = save;
+  document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } });
+
+  $("#btnMinify").onclick = async () => {
+    $("#btnMinify").disabled = true; $("#szMin").textContent = "…";
+    try {
+      state.project.shader = code.value;
+      const r = await api("/api/minify", { project: state.project });
+      $("#szMin").textContent = fmtBytes(r.bytes) + " (" + (100 * r.bytes / r.rawBytes).toFixed(0) + "%)";
+      log("[minify] " + r.rawBytes + " -> " + r.bytes + " bytes\n" + r.minified + "\n");
+      toast("Shader_Minifier: " + fmtBytes(r.bytes));
+    } catch (e) { $("#szMin").textContent = "실패"; log("[minify] " + e.message + "\n"); toast("Minify 실패 (로그 확인)"); }
+    $("#btnMinify").disabled = false;
+  };
+
+  $("#btnBuild").onclick = async () => {
+    $("#btnBuild").disabled = true; $("#logBody").textContent = ""; $("#log").classList.remove("collapsed");
+    state.project.shader = code.value;
+    try {
+      const r = await fetch("/api/build", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project: state.project, upx: $("#chkUpx").checked }) });
+      if (!r.ok) { const j = await r.json(); throw new Error(j.error); }
+      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read(); if (done) break;
+        const txt = dec.decode(value, { stream: true }); buf += txt; log(txt);
+      }
+      const m = buf.match(/@@RESULT (.*)$/m);
+      if (m) {
+        const res = JSON.parse(m[1]);
+        if (res.code === 0) { toast("빌드 성공"); showExe(res.exe, res.exeUpx); } else toast("빌드 실패 (code " + res.code + ")");
+      }
+    } catch (e) { log("[build] " + e.message + "\n"); toast("빌드 실패: " + e.message); }
+    refreshStatus();
+  };
+
+  $("#btnRun").onclick = async () => {
+    try { const r = await api("/api/run", { upx: $("#chkUpx").checked && state.status && state.status.exeUpx }); toast("실행됨 (ESC로 종료): " + r.exe); }
+    catch (e) { toast("실행 실패: " + e.message); }
+  };
+
+  $("#btnLoadPreset").onclick = () => {
+    const p = JSON.parse(JSON.stringify(state.presets[$("#presets").value]));
+    p.name = state.project.name;
+    loadProjectIntoUI(p); toast("프리셋 로드: " + state.presets[$("#presets").value].name + " (저장하려면 💾)");
+  };
+  $("#btnClearLog").onclick = () => { $("#logBody").textContent = ""; };
+  $("#btnToggleLog").onclick = () => { const f = $("#log"); f.classList.toggle("collapsed"); $("#btnToggleLog").textContent = f.classList.contains("collapsed") ? "펼치기" : "접기"; };
+
+  // ---------------- boot ----------------
+  (async () => {
+    state.presets = await api("/api/presets");
+    state.presets.forEach((p, i) => { const o = document.createElement("option"); o.value = i; o.textContent = p.name; $("#presets").appendChild(o); });
+    loadProjectIntoUI(await api("/api/project"));
+    await refreshStatus();
+    requestAnimationFrame(frame);
+    log("준비됨. 파라미터/코드 수정 → 즉시 프리뷰, 💾 로 src/shader.frag 생성, 🔨 로 cargo 빌드.\n");
+  })();
+})();
+</script>
+</body>
+</html>
