@@ -63,6 +63,22 @@ Shader_Minifier가 한 번만 쓰인 상수는 인라인하고 나머지는 이�
 
 이후 스튜디오의 🔨 Build 버튼이 `target/release/starter.exe`(+ `starter.upx.exe`)를 만들고 크기를 65 536 B 기준 막대로 보여줍니다.
 
+## GitHub Actions (CI 빌드)
+
+`.github/workflows/build.yml`이 push/PR마다 `windows-latest` 러너에서 `cargo build --release`를 실행하고
+`target/release/starter.exe`를 `64k-starter` 아티팩트로 올립니다. 사용 액션:
+
+- `actions/checkout@v7`
+- `actions/upload-artifact@v7`
+
+(둘 다 Node 24 기반이라 Node 20 사용 중단 경고가 없습니다.)
+
+아티팩트 받기:
+```
+gh run download -R bigsam73/64k-studio -n 64k-starter -D ci-build
+```
+러너의 MSVC/SDK 버전이 로컬과 달라 크기가 수백 바이트 차이 날 수 있습니다(CI 28 672 B, 로컬 29 184 B).
+
 ## 음악
 
 `src/song.bin`(WaveSabre)은 그대로입니다. 데모 길이는 곡 길이로 결정되므로, 스튜디오의 "길이" 값은 프리뷰 루프에만 쓰입니다.
