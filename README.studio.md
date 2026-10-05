@@ -21,6 +21,31 @@ studio.cmd            (또는)  node studio\server.js
 | 상단 | 💾 코드 생성/저장(Ctrl+S) · 📐 Minify · 🔨 Build · ▶ Run · ⬇ .frag |
 | 하단 | cargo / upx / minifier 로그 |
 
+## 프리셋
+
+오른쪽 패널의 프리셋 4종. 프리셋을 고르면 파라미터와 셰이더 본문이 함께 바뀌고, 💾 저장 시 `src/shader.frag`와 `studio/project.json`에 반영됩니다.
+
+| 프리셋 | 파라미터 | 설명 |
+|---|---|---|
+| Shadertoy 기본 (원본 예제) | SPEED, PHASE, BRIGHT | 64k-starter 원본 셰이더 |
+| Plasma | SPEED, SCALE, COLOR_A, COLOR_B | 2D 플라즈마 |
+| Raymarch 구체+바닥 | ITER, CAM_DIST, ORBIT_SPEED, RADIUS, SPHERE_COL, FLOOR_COL, FOG | 레이마칭 기본 장면 |
+| **Tunnel** (현재 적용) | SPEED, TWIST, RINGS, TINT | 극좌표 기반 무한 터널 |
+
+### 현재 상태: Tunnel
+
+저장소의 `src/shader.frag`와 `studio/project.json`은 Tunnel 프리셋 상태로 커밋되어 있습니다.
+
+| 파라미터 | 값 | 범위 |
+|---|---|---|
+| SPEED | 1.5 | 0 ~ 6 |
+| TWIST | 0.5 | 0 ~ 3 |
+| RINGS | 8 | 1 ~ 40 |
+| TINT | (0.3, 0.8, 1.0) 하늘색 | 컬러피커 |
+
+빌드 크기 (2026-10-05): `shader.frag` 655 B, 로컬 `starter.exe` 28,672 B, `starter.upx.exe` 18,432 B, CI(windows-latest) `starter.exe` 28,160 B.
+셰이더가 짧아 Raymarch 프리셋보다 512 B 작습니다. 다른 프리셋으로 되돌리려면 스튜디오에서 선택 후 💾 저장하면 됩니다.
+
 ## 파라미터가 코드로 바뀌는 방식
 
 파라미터는 **셰이더 상단에 `const` 상수로 구워집니다** (실행 파일에 런타임 파라미터 코드가 전혀 들어가지 않음).
