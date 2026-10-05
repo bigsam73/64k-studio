@@ -5,63 +5,38 @@
   "duration": 60,
   "params": [
     {
-      "name": "ITER",
-      "type": "int",
-      "value": 64,
-      "min": 8,
-      "max": 200,
-      "step": 1
+      "name": "SPEED",
+      "type": "float",
+      "value": 1.5,
+      "min": 0,
+      "max": 6,
+      "step": 0.01
     },
     {
-      "name": "CAM_DIST",
+      "name": "TWIST",
       "type": "float",
-      "value": 4,
+      "value": 0.5,
+      "min": 0,
+      "max": 3,
+      "step": 0.01
+    },
+    {
+      "name": "RINGS",
+      "type": "float",
+      "value": 8,
       "min": 1,
-      "max": 12,
-      "step": 0.05
+      "max": 40,
+      "step": 0.5
     },
     {
-      "name": "ORBIT_SPEED",
-      "type": "float",
-      "value": 0.4,
-      "min": 0,
-      "max": 3,
-      "step": 0.01
-    },
-    {
-      "name": "RADIUS",
-      "type": "float",
-      "value": 1,
-      "min": 0.1,
-      "max": 3,
-      "step": 0.01
-    },
-    {
-      "name": "SPHERE_COL",
+      "name": "TINT",
       "type": "color",
       "value": [
-        1,
-        0.45,
-        0.2
+        0.3,
+        0.8,
+        1
       ]
-    },
-    {
-      "name": "FLOOR_COL",
-      "type": "color",
-      "value": [
-        0.2,
-        0.25,
-        0.35
-      ]
-    },
-    {
-      "name": "FOG",
-      "type": "float",
-      "value": 0.08,
-      "min": 0,
-      "max": 0.5,
-      "step": 0.005
     }
   ],
-  "shader": "float map(vec3 p)\n{\n    float sphere = length(p - vec3(0.0, RADIUS * (0.6 + 0.4 * sin(iTime * 2.0)), 0.0)) - RADIUS;\n    float floorD = p.y + 1.0;\n    return min(sphere, floorD);\n}\n\nvec3 normal(vec3 p)\n{\n    vec2 e = vec2(0.002, 0.0);\n    return normalize(vec3(map(p + e.xyy) - map(p - e.xyy),\n                          map(p + e.yxy) - map(p - e.yxy),\n                          map(p + e.yyx) - map(p - e.yyx)));\n}\n\nvoid main()\n{\n    vec2 uv = (gl_FragCoord.xy * 2.0 - iResolution) / iResolution.y;\n    float a = iTime * ORBIT_SPEED;\n    vec3 ro = vec3(sin(a) * CAM_DIST, 1.5, cos(a) * CAM_DIST);\n    vec3 ta = vec3(0.0, 0.0, 0.0);\n    vec3 f = normalize(ta - ro);\n    vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));\n    vec3 u = cross(f, r);\n    vec3 rd = normalize(uv.x * r + uv.y * u + 1.6 * f);\n\n    float t = 0.0;\n    float d = 0.0;\n    for (int i = 0; i < ITER; i++)\n    {\n        d = map(ro + rd * t);\n        if (d < 0.001 || t > 40.0) break;\n        t += d;\n    }\n\n    vec3 col = vec3(0.02, 0.03, 0.05);\n    if (d < 0.001)\n    {\n        vec3 p = ro + rd * t;\n        vec3 n = normal(p);\n        vec3 l = normalize(vec3(0.6, 0.8, -0.4));\n        float dif = max(dot(n, l), 0.0);\n        vec3 base = p.y < -0.99 ? FLOOR_COL * (0.5 + 0.5 * mod(floor(p.x) + floor(p.z), 2.0)) : SPHERE_COL;\n        col = base * (0.15 + dif);\n        col = mix(col, vec3(0.02, 0.03, 0.05), 1.0 - exp(-FOG * t));\n    }\n    gl_FragColor = vec4(pow(col, vec3(0.4545)), 1.0);\n}"
+  "shader": "void main()\n{\n    vec2 uv = (gl_FragCoord.xy * 2.0 - iResolution) / iResolution.y;\n    float r = length(uv);\n    float a = atan(uv.y, uv.x) + iTime * TWIST;\n    float depth = 1.0 / (r + 0.1);\n    float z = depth + iTime * SPEED;\n    float ring = 0.5 + 0.5 * sin(z * RINGS);\n    float stripe = 0.5 + 0.5 * sin(a * 8.0);\n    vec3 col = TINT * ring * (0.4 + 0.6 * stripe);\n    col *= smoothstep(0.0, 0.5, r);\n    col *= 1.0 / (1.0 + depth * 0.15);\n    gl_FragColor = vec4(col, 1.0);\n}"
 }
